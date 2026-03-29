@@ -1,0 +1,21 @@
+# virtual environment
+venv/
+.venv/
+env/
+
+# Python bytecode
+__pycache__/
+*.pyc
+*.pyo
+
+# environment variables (API keys etc — never commit these)
+.env
+
+# VSCode settings
+.vscode/
+
+# Mac junk
+.DS_Store
+
+# Jupyter checkpoints (if you ever use notebooks)
+.ipynb_checkpoints/
