@@ -1,7 +1,11 @@
 # My Agent Model
 
-A brief description of what this model does.
+Currently only the basic Sugarscape model.
 
+Goal: Sugarscape model with trade, multiple goods, and government intervention
+
+
+Original Sugarscape Model by Epstein and Axtell - Growing Artificial Societies
 ## Setup
 1. Clone the repo
 2. Create a virtual environment: `python -m venv venv`
@@ -9,4 +13,4 @@ A brief description of what this model does.
 4. Install dependencies: `pip install -r requirements.txt`
 
 ## Usage
-Describe how to run the model here.
+Call run function with parameters of choice
