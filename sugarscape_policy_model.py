@@ -94,7 +94,7 @@ class Environment:
     def __post_init__(self) -> None:
         n_goods = len(self.resource_fns)
         if n_goods < 2:
-            raise ValueError("Use at least two goods to match the proposal and Sugarscape trade setting")
+            raise ValueError(f"Number of goods must be at least 2 for Sugarscape trade, got {n_goods}")
         maxima = np.full(n_goods, float(self.max_resource), dtype=float) if np.isscalar(self.max_resource) else np.asarray(self.max_resource, dtype=float)
         if maxima.size != n_goods:
             raise ValueError("max_resource must be scalar or length equal to number of goods")
@@ -204,6 +204,14 @@ class StepMetrics:
 
 @dataclass
 class SugarscapeModel:
+    """Proposal-aligned Sugarscape ABM.
+
+    Trade controls:
+    - trade_max_rounds: maximum bilateral negotiation rounds per good pair.
+    - trade_initial_quantity: initial quantity attempted in each trade exchange.
+    - trade_max_fraction: upper bound on fraction of a bundle tradable in one exchange.
+    """
+
     num_agents: int
     environment_size: Tuple[int, int]
     resource_fns: Sequence[Callable[[ArrayLike, ArrayLike], ArrayLike]]
@@ -214,6 +222,9 @@ class SugarscapeModel:
     initial_wealth_mean: float = 3.0
     preference_sigma: float = 0.1
     metabolic_sigma: float = 0.05
+    trade_max_rounds: int = 15
+    trade_initial_quantity: float = 1.0
+    trade_max_fraction: float = 0.5
     max_resource: Sequence[float] | float = 10.0
     policy: Optional[Policy] = None
     seed: Optional[int] = None
@@ -275,12 +286,12 @@ class SugarscapeModel:
             return -np.inf
         return agent.utility(new_bundle)
 
-    def _trade_pair(self, a: Agent, b: Agent, trade_volume: Dict[Tuple[int, int], float], max_rounds: int = 15) -> None:
+    def _trade_pair(self, a: Agent, b: Agent, trade_volume: Dict[Tuple[int, int], float]) -> None:
         if not (a.alive and b.alive):
             return
 
         for i, j in combinations(range(self.n_goods), 2):
-            for _ in range(max_rounds):
+            for _ in range(self.trade_max_rounds):
                 mrs_a = a.mrs(i, j)
                 mrs_b = b.mrs(i, j)
                 if np.isclose(mrs_a, mrs_b):
@@ -291,13 +302,13 @@ class SugarscapeModel:
                 if not np.isfinite(price) or price <= 0:
                     break
 
-                dq_i = 1.0
+                dq_i = self.trade_initial_quantity
                 dq_j = price * dq_i
                 if seller.bundle[i] <= 1e-12 or buyer.bundle[j] <= 1e-12:
                     break
 
-                dq_i = min(dq_i, seller.bundle[i] * 0.5)
-                dq_j = min(dq_j, buyer.bundle[j] * 0.5)
+                dq_i = min(dq_i, seller.bundle[i] * self.trade_max_fraction)
+                dq_j = min(dq_j, buyer.bundle[j] * self.trade_max_fraction)
                 if dq_i <= 1e-12 or dq_j <= 1e-12:
                     break
 
@@ -399,6 +410,16 @@ def run_policy_experiment(
     model_kwargs: Dict,
     intervention_policy: Policy,
 ) -> Dict[str, float]:
+    """Run baseline vs intervention models and return aggregate comparison metrics.
+
+    Args:
+        time_steps: Number of simulation steps for each run.
+        model_kwargs: Keyword arguments forwarded to SugarscapeModel.
+        intervention_policy: Policy instance used for the intervention run.
+
+    Returns:
+        Dictionary with average utility, inequality, and death-rate comparisons.
+    """
     baseline_model = SugarscapeModel(policy=Policy(), **model_kwargs)
     baseline_hist = baseline_model.run(time_steps)
 
@@ -424,13 +445,16 @@ def run_policy_experiment(
 
 
 if __name__ == "__main__":
-    sugar_peak = lambda x, y: np.exp(-((x - 0.2) ** 2 + (y - 0.2) ** 2) / 0.01) + np.exp(-((x - 0.8) ** 2 + (y - 0.8) ** 2) / 0.02)
-    spice_peak = lambda x, y: np.exp(-((x - 0.8) ** 2 + (y - 0.2) ** 2) / 0.01) + np.exp(-((x - 0.2) ** 2 + (y - 0.8) ** 2) / 0.02)
+    def sugar_peak_fn(x: ArrayLike, y: ArrayLike) -> ArrayLike:
+        return np.exp(-((x - 0.2) ** 2 + (y - 0.2) ** 2) / 0.01) + np.exp(-((x - 0.8) ** 2 + (y - 0.8) ** 2) / 0.02)
+
+    def spice_peak_fn(x: ArrayLike, y: ArrayLike) -> ArrayLike:
+        return np.exp(-((x - 0.8) ** 2 + (y - 0.2) ** 2) / 0.01) + np.exp(-((x - 0.2) ** 2 + (y - 0.8) ** 2) / 0.02)
 
     model = SugarscapeModel(
         num_agents=100,
         environment_size=(60, 60),
-        resource_fns=[sugar_peak, spice_peak],
+        resource_fns=[sugar_peak_fn, spice_peak_fn],
         max_resource=[12.0, 12.0],
         resource_regrowth_rate=0.05,
         vision=2,
