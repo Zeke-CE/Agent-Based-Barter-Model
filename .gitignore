@@ -23,3 +23,6 @@ __pycache__/
 
 #Data and Output
 output/
+
+#Claude
+.claude/
