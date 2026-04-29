@@ -19,3 +19,7 @@ __pycache__/
 
 # Jupyter checkpoints (if you ever use notebooks)
 .ipynb_checkpoints/
+
+
+#Data and Output
+output/
